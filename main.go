@@ -231,7 +231,13 @@ func main() {
 			var filePath = ""
 			if update.Message.Document != nil {
 				fileID = update.Message.Document.FileID
-				filePath = update.Message.Document.FileName
+				filename := update.Message.Document.FileName
+				if strings.LastIndex(filename, ".") == -1 {
+					filePath = fmt.Sprintf("%s.mp4", fileID)
+				} else {
+					filePath = fmt.Sprintf("%s.%s", fileID, filename[strings.LastIndex(filename, ".")+1:])
+				}
+
 			} else if update.Message.Video != nil {
 				fileID = update.Message.Video.FileID
 				filePath = fmt.Sprintf("%s.mp4", update.Message.Video.FileID)
