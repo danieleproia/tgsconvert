@@ -32,116 +32,6 @@ func isCompatible(filename string) bool {
 	return compatible
 }
 
-func main() {
-	// Get the current directory
-	exePath, err := os.Executable()
-	if err != nil {
-		fmt.Print("Failed to get executable path:", err)
-		os.Exit(1)
-	}
-
-	dir = filepath.Dir(exePath)
-	envFilePath := filepath.Join(dir, ".env")
-
-	err = godotenv.Load(envFilePath)
-	if err != nil {
-		fmt.Print("Error loading .env file:", err)
-		os.Exit(1)
-	}
-
-	token = os.Getenv("BOT_TOKEN")
-
-	// Create a new Telegram bot
-	bot, err = tgbotapi.NewBotAPI(token)
-	if err != nil {
-		fmt.Printf("failed to initialize Telegram bot: %v", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("Bot is running")
-
-	// Register the bot command handlers
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
-
-	updates, err := bot.GetUpdatesChan(u)
-	if err != nil {
-		fmt.Printf("failed to get update channel: %v", err)
-		os.Exit(1)
-	}
-
-	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
-
-		// Handle the "/start" command
-		if update.Message.IsCommand() && update.Message.Command() == "start" {
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Welcome to the Video Converter bot! Please upload a video file. This bot uses ffmpeg to convert videos.")
-			// send message with url to the ffmpeg website
-			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonURL("FFmpeg", "https://ffmpeg.org/"),
-				), tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonURL("Donate to ffmpeg", "https://ffmpeg.org/donations.html"),
-				),
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonURL("Donate to me", "https://paypal.me/danielepro"),
-				),
-			)
-			bot.Send(msg)
-		}
-
-		// Handle document uploads (videos)
-		if update.Message.Document != nil || update.Message.Video != nil {
-			var fileID = ""
-			var filePath = ""
-			if update.Message.Document != nil {
-				fileID = update.Message.Document.FileID
-				filePath = update.Message.Document.FileName
-			} else if update.Message.Video != nil {
-				fileID = update.Message.Video.FileID
-				filePath = fmt.Sprintf("%s.mp4", update.Message.Video.FileID)
-			}
-
-			// check if the file is compatible with ffmpeg
-			var compatible = isCompatible(filePath)
-			if !compatible {
-				sendMessage(update.Message.Chat.ID, "File format not supported.")
-				continue
-			}
-
-			// send "converting" message
-			sendMessage(update.Message.Chat.ID, "Converting video...")
-
-			// Download the file
-			joinedFilePath := filepath.Join(dir, filePath)
-			err := downloadFile(fileID, joinedFilePath)
-			if err != nil {
-				sendMessage(update.Message.Chat.ID, "Failed to download file.")
-				fmt.Printf("failed to download file: %v", err)
-				continue
-			}
-
-			// Convert the video
-			convertedFilePath, err := convertVideo(joinedFilePath)
-			if err != nil {
-				sendMessage(update.Message.Chat.ID, "Failed to convert video.")
-				fmt.Printf("failed to convert video: %v", err)
-				os.Remove(joinedFilePath)
-				os.Remove(convertedFilePath)
-				continue
-			}
-			sendMessage(update.Message.Chat.ID, "Video converted, sending back...")
-			// Send the converted video back
-			video := tgbotapi.NewVideoUpload(update.Message.Chat.ID, convertedFilePath)
-			bot.Send(video)
-			os.Remove(joinedFilePath)
-			os.Remove(convertedFilePath)
-		}
-	}
-}
-
 func sendMessage(chatID int64, text string) {
 	go func() {
 		msg := tgbotapi.NewMessage(chatID, text)
@@ -273,4 +163,114 @@ func calculateDimensions(dimensions string) (newWidth, newHeight int) {
 	}
 
 	return newWidth, newHeight
+}
+
+func main() {
+	// Get the current directory
+	exePath, err := os.Executable()
+	if err != nil {
+		fmt.Print("Failed to get executable path:", err)
+		os.Exit(1)
+	}
+
+	dir = filepath.Dir(exePath)
+	envFilePath := filepath.Join(dir, ".env")
+
+	err = godotenv.Load(envFilePath)
+	if err != nil {
+		fmt.Print("Error loading .env file:", err)
+		os.Exit(1)
+	}
+
+	token = os.Getenv("BOT_TOKEN")
+
+	// Create a new Telegram bot
+	bot, err = tgbotapi.NewBotAPI(token)
+	if err != nil {
+		fmt.Printf("failed to initialize Telegram bot: %v", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Bot is running")
+
+	// Register the bot command handlers
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+
+	updates, err := bot.GetUpdatesChan(u)
+	if err != nil {
+		fmt.Printf("failed to get update channel: %v", err)
+		os.Exit(1)
+	}
+
+	for update := range updates {
+		if update.Message == nil {
+			continue
+		}
+
+		// Handle the "/start" command
+		if update.Message.IsCommand() && update.Message.Command() == "start" {
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Welcome to the Video Converter bot! Please upload a video file. This bot uses ffmpeg to convert videos.")
+			// send message with url to the ffmpeg website
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonURL("FFmpeg", "https://ffmpeg.org/"),
+				), tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonURL("Donate to ffmpeg", "https://ffmpeg.org/donations.html"),
+				),
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonURL("Donate to me", "https://paypal.me/danielepro"),
+				),
+			)
+			bot.Send(msg)
+		}
+
+		// Handle document uploads (videos)
+		if update.Message.Document != nil || update.Message.Video != nil {
+			var fileID = ""
+			var filePath = ""
+			if update.Message.Document != nil {
+				fileID = update.Message.Document.FileID
+				filePath = update.Message.Document.FileName
+			} else if update.Message.Video != nil {
+				fileID = update.Message.Video.FileID
+				filePath = fmt.Sprintf("%s.mp4", update.Message.Video.FileID)
+			}
+
+			// check if the file is compatible with ffmpeg
+			var compatible = isCompatible(filePath)
+			if !compatible {
+				sendMessage(update.Message.Chat.ID, "File format not supported.")
+				continue
+			}
+
+			// send "converting" message
+			sendMessage(update.Message.Chat.ID, "Converting video...")
+
+			// Download the file
+			joinedFilePath := filepath.Join(dir, filePath)
+			err := downloadFile(fileID, joinedFilePath)
+			if err != nil {
+				sendMessage(update.Message.Chat.ID, "Failed to download file.")
+				fmt.Printf("failed to download file: %v", err)
+				continue
+			}
+
+			// Convert the video
+			convertedFilePath, err := convertVideo(joinedFilePath)
+			if err != nil {
+				sendMessage(update.Message.Chat.ID, "Failed to convert video.")
+				fmt.Printf("failed to convert video: %v", err)
+				os.Remove(joinedFilePath)
+				os.Remove(convertedFilePath)
+				continue
+			}
+			sendMessage(update.Message.Chat.ID, "Video converted, sending back...")
+			// Send the converted video back
+			video := tgbotapi.NewVideoUpload(update.Message.Chat.ID, convertedFilePath)
+			bot.Send(video)
+			os.Remove(joinedFilePath)
+			os.Remove(convertedFilePath)
+		}
+	}
 }
