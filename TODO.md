@@ -1,0 +1,1 @@
+- Queue: Bot dies if too many use it at the same time i guess
